@@ -475,11 +475,36 @@ void DBWrapper::initObstacles() {
 
         for (odb::dbObstruction* currObstruct : block->getObstructions()) {
                 odb::dbBox* obstructBox = currObstruct->getBBox();
+                odb::dbTechLayer* obstructLayer = obstructBox->getTechLayer();
                 
-                int layer = obstructBox->getTechLayer()->getRoutingLevel();
+                int layer = obstructLayer->getRoutingLevel();
+
+                int maxInt = std::numeric_limits<int>::max();
+
+                //Gets the smallest possible minimum spacing that won't cause violations for ANY configuration of PARALLELRUNLENGTH (the biggest value in the table)
                 
-                Coordinate lowerBound = Coordinate(obstructBox->xMin(), obstructBox->yMin());
-                Coordinate upperBound = Coordinate(obstructBox->xMax(), obstructBox->yMax());
+                int macroExtension = obstructLayer->getSpacing(maxInt,maxInt);
+
+                std::cout << "[INFO] Last spacing value from PARALLELRUNLENGTH table: " << ((float) (macroExtension))/block->getDbUnitsPerMicron() << ".\n";
+
+                odb::dbSet<odb::dbTechLayerSpacingRule> eolRules;
+
+                //Check for EOL spacing values and use them as the macro extension instead of PARALLELRUNLENGTH
+
+                if (obstructLayer->getV54SpacingRules(eolRules)){
+                        for (odb::dbTechLayerSpacingRule* currentRule : eolRules){
+                                uint currentSpacing = currentRule->getSpacing();
+                                std::cout << "[INFO] EOL minimum spacing found: " << ((float) (currentSpacing))/block->getDbUnitsPerMicron() << ".\n";
+                                if (currentSpacing > macroExtension){
+                                        macroExtension = currentSpacing;
+                                }
+                        }
+                }
+
+                //Extend the current obstruction bounding box by the value of macroExtension, preventing spacing violations
+                
+                Coordinate lowerBound = Coordinate(obstructBox->xMin() - macroExtension, obstructBox->yMin() - macroExtension);
+                Coordinate upperBound = Coordinate(obstructBox->xMax() + macroExtension, obstructBox->yMax() + macroExtension);
                 Box obstacleBox = Box(lowerBound, upperBound, layer);
                 if (!dieArea.inside(obstacleBox)) {
                         std::cout << "[WARNING] Found obstacle outside die area\n";
