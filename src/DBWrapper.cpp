@@ -479,15 +479,11 @@ void DBWrapper::initObstacles() {
                         continue;
                 }
 
-                std::cout << "[INFO] Checking rules for layer: " << obstructLayer->getName() << ".\n";
-
                 int maxInt = std::numeric_limits<int>::max();
 
                 //Gets the smallest possible minimum spacing that won't cause violations for ANY configuration of PARALLELRUNLENGTH (the biggest value in the table)
                 
                 uint macroExtension = obstructLayer->getSpacing(maxInt,maxInt);
-
-                std::cout << "[INFO] Last spacing value from PARALLELRUNLENGTH table: " << ((float) (macroExtension))/block->getDbUnitsPerMicron() << ".\n";
 
                 odb::dbSet<odb::dbTechLayerSpacingRule> eolRules;
 
@@ -496,7 +492,6 @@ void DBWrapper::initObstacles() {
                 if (obstructLayer->getV54SpacingRules(eolRules)){
                         for (odb::dbTechLayerSpacingRule* currentRule : eolRules){
                                 uint currentSpacing = currentRule->getSpacing();
-                                std::cout << "[INFO] EOL minimum spacing found: " << ((float) (currentSpacing))/block->getDbUnitsPerMicron() << ".\n";
                                 if (currentSpacing > macroExtension){
                                         macroExtension = currentSpacing;
                                 }
@@ -511,7 +506,6 @@ void DBWrapper::initObstacles() {
                         if (!spacingTable.empty()){
                                 std::vector<uint> lastRow = spacingTable.back();
                                 uint lastValue = lastRow.back();
-                                std::cout << "[INFO] Last spacing value from TWOWIDTHS table: " << ((float) (lastValue))/block->getDbUnitsPerMicron() << ".\n";
                                 if (lastValue > macroExtension){
                                         macroExtension = lastValue;
                                 }
