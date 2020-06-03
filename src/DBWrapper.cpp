@@ -471,25 +471,25 @@ void DBWrapper::initObstacles() {
                 std::exit(1);
         }
 
-        int obstructionsCnt = 0;
+        std::map<int, uint> layerExtensions;
 
-        for (odb::dbObstruction* currObstruct : block->getObstructions()) {
-                odb::dbBox* obstructBox = currObstruct->getBBox();
-                odb::dbTechLayer* obstructLayer = obstructBox->getTechLayer();
-                
+        for (odb::dbTechLayer* obstructLayer : tech->getLayers()) {
+
                 int layer = obstructLayer->getRoutingLevel();
+
+                std::cout << "[INFO] Checking rules for layer: " << obstructLayer->getName() << ".\n";
 
                 int maxInt = std::numeric_limits<int>::max();
 
                 //Gets the smallest possible minimum spacing that won't cause violations for ANY configuration of PARALLELRUNLENGTH (the biggest value in the table)
                 
-                int macroExtension = obstructLayer->getSpacing(maxInt,maxInt);
+                uint macroExtension = obstructLayer->getSpacing(maxInt,maxInt);
 
                 std::cout << "[INFO] Last spacing value from PARALLELRUNLENGTH table: " << ((float) (macroExtension))/block->getDbUnitsPerMicron() << ".\n";
 
                 odb::dbSet<odb::dbTechLayerSpacingRule> eolRules;
 
-                //Check for EOL spacing values and use them as the macro extension instead of PARALLELRUNLENGTH
+                //Check for EOL spacing values and, if the spacing is higher than the one found, use them as the macro extension instead of PARALLELRUNLENGTH
 
                 if (obstructLayer->getV54SpacingRules(eolRules)){
                         for (odb::dbTechLayerSpacingRule* currentRule : eolRules){
@@ -501,10 +501,35 @@ void DBWrapper::initObstacles() {
                         }
                 }
 
-                //Extend the current obstruction bounding box by the value of macroExtension, preventing spacing violations
+                //Check for TWOWIDTHS table values and, if the spacing is higher than the one found, use them as the macro extension instead of PARALLELRUNLENGTH
+
+                if(obstructLayer->hasTwoWidthsSpacingRules()){
+                        std::vector<std::vector<uint>> spacingTable;
+                        obstructLayer->getTwoWidthsSpacingTable(spacingTable);
+                        if (!spacingTable.empty()){
+                                std::vector<uint> lastRow = spacingTable.back();
+                                uint lastValue = lastRow.back();
+                                std::cout << "[INFO] Last spacing value from TWOWIDTHS table: " << ((float) (lastValue))/block->getDbUnitsPerMicron() << ".\n";
+                                if (lastValue > macroExtension){
+                                        macroExtension = lastValue;
+                                }
+                        }
+                }
                 
-                Coordinate lowerBound = Coordinate(obstructBox->xMin() - macroExtension, obstructBox->yMin() - macroExtension);
-                Coordinate upperBound = Coordinate(obstructBox->xMax() + macroExtension, obstructBox->yMax() + macroExtension);
+                //Save the extension to use when defining Macros
+
+                layerExtensions[layer] = macroExtension;
+        }
+
+        int obstructionsCnt = 0;
+
+        for (odb::dbObstruction* currObstruct : block->getObstructions()) {
+                odb::dbBox* obstructBox = currObstruct->getBBox();
+                
+                int layer = obstructBox->getTechLayer()->getRoutingLevel();
+                
+                Coordinate lowerBound = Coordinate(obstructBox->xMin(), obstructBox->yMin());
+                Coordinate upperBound = Coordinate(obstructBox->xMax(), obstructBox->yMax());
                 Box obstacleBox = Box(lowerBound, upperBound, layer);
                 if (!dieArea.inside(obstacleBox)) {
                         std::cout << "[WARNING] Found obstacle outside die area\n";
@@ -531,9 +556,11 @@ void DBWrapper::initObstacles() {
                 odb::Point origin = odb::Point(pX, pY);
                 
                 odb::dbTransform transform(currInst->getOrient(), origin);
-                
+
+                bool isMacro = false;
                 if (master->isBlock()) {
                         macrosCnt++;
+                        isMacro = true;
                 }
                 
                 for (odb::dbBox* currBox : master->getObstructions()) {
@@ -543,8 +570,14 @@ void DBWrapper::initObstacles() {
                         currBox->getBox(rect);
                         transform.apply(rect);
 
-                        Coordinate lowerBound = Coordinate(rect.xMin(), rect.yMin());
-                        Coordinate upperBound = Coordinate(rect.xMax(), rect.yMax());
+                        bool macroExtension = 0;
+
+                        if (isMacro){
+                                macroExtension = layerExtensions[layer];
+                        }
+
+                        Coordinate lowerBound = Coordinate(rect.xMin() - macroExtension, rect.yMin() - macroExtension);
+                        Coordinate upperBound = Coordinate(rect.xMax() + macroExtension, rect.yMax() + macroExtension);
                         Box obstacleBox = Box(lowerBound, upperBound, layer);
                         if (!dieArea.inside(obstacleBox)) {
                                 std::cout << "[WARNING] Found obstacle outside die area in instance " << currInst->getConstName() << "\n";
