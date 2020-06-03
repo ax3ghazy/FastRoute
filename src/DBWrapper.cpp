@@ -475,6 +475,10 @@ void DBWrapper::initObstacles() {
 
         for (odb::dbTechLayer* obstructLayer : tech->getLayers()) {
 
+                if (obstructLayer->getType().getValue() != odb::dbTechLayerType::ROUTING){
+                        continue;
+                }
+
                 std::cout << "[INFO] Checking rules for layer: " << obstructLayer->getName() << ".\n";
 
                 int maxInt = std::numeric_limits<int>::max();
