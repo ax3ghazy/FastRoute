@@ -471,11 +471,9 @@ void DBWrapper::initObstacles() {
                 std::exit(1);
         }
 
-        std::map<int, uint> layerExtensions;
+        std::map<std::string, uint> layerExtensions;
 
         for (odb::dbTechLayer* obstructLayer : tech->getLayers()) {
-
-                int layer = obstructLayer->getRoutingLevel();
 
                 std::cout << "[INFO] Checking rules for layer: " << obstructLayer->getName() << ".\n";
 
@@ -518,7 +516,7 @@ void DBWrapper::initObstacles() {
                 
                 //Save the extension to use when defining Macros
 
-                layerExtensions[layer] = macroExtension;
+                layerExtensions[obstructLayer->getName()] = macroExtension;
         }
 
         int obstructionsCnt = 0;
@@ -570,10 +568,10 @@ void DBWrapper::initObstacles() {
                         currBox->getBox(rect);
                         transform.apply(rect);
 
-                        bool macroExtension = 0;
+                        uint macroExtension = 0;
 
                         if (isMacro){
-                                macroExtension = layerExtensions[layer];
+                                macroExtension = layerExtensions[currBox->getTechLayer()->getName()];
                         }
 
                         Coordinate lowerBound = Coordinate(rect.xMin() - macroExtension, rect.yMin() - macroExtension);
